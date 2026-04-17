@@ -14,6 +14,10 @@ class GameAudio {
   }
 
   playBGM() {
+    this.init();
+    if (this.context && this.context.state === 'suspended') {
+      this.context.resume();
+    }
     if (!this.bgm) {
       const base = (import.meta as any).env.BASE_URL || '/';
       const cleanBase = base.endsWith('/') ? base : base + '/';
@@ -35,6 +39,7 @@ class GameAudio {
   playPass() {
     this.init();
     if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
     
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
@@ -56,6 +61,7 @@ class GameAudio {
   playCrash() {
     this.init();
     if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
     
     const now = this.context.currentTime;
     
@@ -98,6 +104,7 @@ class GameAudio {
   playJump() {
     this.init();
     if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
     
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();

@@ -23,9 +23,9 @@ interface GameProps {
   onGameStart: () => void;
 }
 
-const HUMAN_IMAGE_URL = getAssetUrl('player.jpeg');
-const BACKGROUND_IMAGE_URL = 'https://picsum.photos/seed/modern-amaravati-grand-capital/1200/800?blur=1';
-const WINNER_VIDEO_URL = getAssetUrl('winner.mp4');
+const HUMAN_IMAGE_URL = '/player.jpeg';
+const WINNER_VIDEO_URL = '/winner.mp4';
+const BGM_URL = '/bgm.mp3';
 
 export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +37,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
   });
 
   const [dimensions, setDimensions] = useState({ width: 360, height: 640 });
+  const dimensionsRef = useRef(dimensions);
   const [isShaking, setIsShaking] = useState(false);
   const [assetErrors, setAssetErrors] = useState<string[]>([]);
 
@@ -61,7 +62,6 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
   });
 
   const birdImg = useRef<HTMLImageElement | null>(null);
-  const backgroundImg = useRef<HTMLImageElement | null>(null);
 
   // Responsive Canvas Sizing
   useEffect(() => {
@@ -71,6 +71,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setDimensions({ width, height });
+        dimensionsRef.current = { width, height };
       }
     });
 
@@ -85,19 +86,10 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       birdImg.current = pImg;
     };
     pImg.onerror = () => {
-      console.error("Player image failed to load at:", HUMAN_IMAGE_URL);
-      setAssetErrors(prev => [...prev, "Player image (player.jpeg)"]);
-    };
-
-    const bgImg = new Image();
-    bgImg.src = BACKGROUND_IMAGE_URL;
-    bgImg.crossOrigin = "anonymous";
-    bgImg.onload = () => {
-      backgroundImg.current = bgImg;
-    };
-    bgImg.onerror = () => {
-      console.error("Background image failed to load at:", BACKGROUND_IMAGE_URL);
-      setAssetErrors(prev => [...prev, "Background AI Image"]);
+      console.warn("Retrying player image with fallback...");
+      // Try a public URL if the local file is corrupted or mislabeled
+      const fallback = 'https://picsum.photos/seed/actor/200/200';
+      pImg.src = fallback;
     };
   }, []);
 
@@ -142,19 +134,25 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
     if (!ctx) return;
 
     let animationId: number;
+    let lastTime = performance.now();
 
+    const BASE_SPEED = 1; // Multiplier for delta time
     const GRAVITY = 0.35;
     const PIPE_WIDTH = 70;
     const PIPE_GAP = 180;
     const PIPE_SPEED = 3.5;
-    const BIRD_SIZE = 50; // Larger for better visibility of bhAAi's face
+    const BIRD_SIZE = 50;
+    const HITBOX_PADDING = 10; // Make collision more forgiving
 
     // Particle/Juice Effects
     const speedLines: {x: number, y: number, length: number}[] = [];
-    for(let i=0; i<10; i++) speedLines.push({x: Math.random() * dimensions.width, y: Math.random() * dimensions.height, length: 20 + Math.random() * 40});
+    for(let i=0; i<10; i++) speedLines.push({x: Math.random() * dimensionsRef.current.width, y: Math.random() * dimensionsRef.current.height, length: 20 + Math.random() * 40});
 
-    const draw = () => {
-      const { width, height } = dimensions;
+    const draw = (time: number) => {
+      const { width, height } = dimensionsRef.current;
+      const deltaTime = (time - lastTime) / (1000 / 60); // Normalize to 60fps
+      lastTime = time;
+
       const state = stateRef.current;
       
       // Update canvas internal res if changed
@@ -166,55 +164,12 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Background - Match Design HTML Gradient (Sleek Interface)
-      // linear-gradient(to bottom, #72c5e1 0%, #b3e1f1 70%, #76c733 70%, #5e9c2a 100%)
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#72c5e1');
-      gradient.addColorStop(0.7, '#b3e1f1');
-      gradient.addColorStop(0.7, '#76c733');
-      gradient.addColorStop(1, '#5e9c2a');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
-      // Background Image - Futuristic Hitech City
-      if (backgroundImg.current) {
-        state.backgroundX = (state.backgroundX || 0) - 0.5;
-        if (state.backgroundX < -width) state.backgroundX = 0;
-        
-        ctx.save();
-        ctx.globalAlpha = 0.6; // Keep it subtle so UI and pipes are visible
-        // Draw twice for seamless loop
-        ctx.drawImage(backgroundImg.current, state.backgroundX, 0, width, height);
-        ctx.drawImage(backgroundImg.current, state.backgroundX + width, 0, width, height);
-        ctx.restore();
-      } else {
-        // Fallback to manual city silhouettes if image hasn't loaded
-        ctx.save();
-        const horizon = height * 0.7;
-        state.backgroundX = (state.backgroundX || 0) - 0.5;
-        if (state.backgroundX < -width) state.backgroundX = 0;
-        
-        const drawCity = (offsetX: number, color: string, scale: number) => {
-          ctx.fillStyle = color;
-          const bOffset = offsetX + state.backgroundX * scale;
-          const towers = [
-            { x: 50, w: 40, h: 150 }, { x: 120, w: 60, h: 220 },
-            { x: 220, w: 30, h: 180 }, { x: 300, w: 50, h: 250 },
-            { x: 400, w: 40, h: 140 }, { x: 500, w: 70, h: 280 }
-          ];
-          [0, width].forEach(wrap => {
-            towers.forEach(t => {
-              const tx = (t.x + bOffset + wrap) % (width * 2);
-              if (tx < width + t.w && tx > -t.w) {
-                 ctx.fillRect(tx, horizon - t.h, t.w, t.h);
-              }
-            });
-          });
-        };
-        drawCity(0, 'rgba(30, 41, 59, 0.3)', 0.5);
-        drawCity(100, 'rgba(15, 23, 42, 0.5)', 0.8);
-        ctx.restore();
-      }
+      // Background - Simple sky and ground
+      ctx.fillStyle = '#72c5e1'; // Sky
+      ctx.fillRect(0, 0, width, height * 0.7);
+      
+      ctx.fillStyle = '#76c733'; // Ground
+      ctx.fillRect(0, height * 0.7, width, height * 0.3);
 
       // Background Branding - MAVIGUN (Elite Neon Display)
       ctx.save();
@@ -261,12 +216,13 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
 
       if (state.gameActive) {
         // Update Physics
-        state.birdVelocity += GRAVITY;
-        state.birdY += state.birdVelocity;
+        state.birdVelocity += GRAVITY * deltaTime;
+        state.birdY += state.birdVelocity * deltaTime;
 
         // Pipe Management
-        state.frameCount++;
-        if (state.frameCount % 100 === 0) {
+        state.frameCount += deltaTime;
+        if (state.frameCount >= 100) {
+          state.frameCount = 0;
           const minHeight = 50;
           const maxHeight = height - PIPE_GAP - 50;
           const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
@@ -280,7 +236,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
 
         // Update Pipes
         state.pipes.forEach((pipe, index) => {
-          pipe.x -= PIPE_SPEED;
+          pipe.x -= PIPE_SPEED * deltaTime;
 
           // Check if passed
           if (!pipe.passed && pipe.x + PIPE_WIDTH < width / 4) {
@@ -293,10 +249,10 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
           // Collision Detection
           const birdX = width / 4;
           const birdBox = {
-            left: birdX - BIRD_SIZE / 2,
-            right: birdX + BIRD_SIZE / 2,
-            top: state.birdY - BIRD_SIZE / 2,
-            bottom: state.birdY + BIRD_SIZE / 2,
+            left: birdX - BIRD_SIZE / 2 + HITBOX_PADDING,
+            right: birdX + BIRD_SIZE / 2 - HITBOX_PADDING,
+            top: state.birdY - BIRD_SIZE / 2 + HITBOX_PADDING,
+            bottom: state.birdY + BIRD_SIZE / 2 - HITBOX_PADDING,
           };
 
           const topPipeBox = {
@@ -480,15 +436,21 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
             <h1 className={`text-2xl font-black mb-1 uppercase tracking-tighter leading-tight text-balance ${score >= 11 ? 'text-yellow-600' : 'text-[#e74c3c]'}`}>
               {score >= 11 ? (
                 <div className="flex flex-col gap-2">
+                   <div className="bg-yellow-400 text-black text-xs py-1 px-3 rounded-full self-center animate-bounce font-bold shadow-lg">
+                    CHAMPION UNLOCKED
+                  </div>
                   <span>you are the 11th winner twin please get ajob fr 🏆</span>
-                  <span className="text-yellow-700 text-sm bg-yellow-100 py-2 px-3 rounded-xl border border-yellow-300 animate-pulse font-bold shadow-sm">
+                  <span className="text-yellow-700 text-base bg-yellow-100 py-3 px-4 rounded-2xl border-2 border-yellow-300 animate-pulse font-black shadow-lg">
                     FINALLY CHEYSAV KANNI POI VERE PANI CHESUKO PILLA KOJJA
                   </span>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
+                  <div className="bg-red-600 text-white text-[10px] py-1 px-3 rounded-full self-center animate-pulse font-bold shadow-md">
+                    SCORE LIMIT NOT REACHED
+                  </div>
                   <span>way to jagan heart failed due to chows 😟</span>
-                  <span className="text-red-600 text-sm bg-red-100 py-1 px-2 rounded-lg border border-red-200 animate-bounce">
+                  <span className="text-white text-base bg-red-600 py-3 px-4 rounded-xl border-b-4 border-red-800 animate-bounce font-black shadow-[0_5px_0_0_rgba(153,27,27,1)]">
                     erripuka 11 kuda score cheyaleva
                   </span>
                 </div>
