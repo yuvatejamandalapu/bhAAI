@@ -18,8 +18,9 @@ class GameAudio {
       this.bgm = new Audio('/bgm.mp3');
       this.bgm.loop = true;
       this.bgm.volume = 0.4;
+      this.bgm.onerror = (e) => console.error("BGM failed to load:", e);
     }
-    this.bgm.play().catch(e => console.log("BGM play prevented by browser policy. Interaction needed."));
+    this.bgm.play().catch(e => console.log("BGM play prevented by browser policy. Interaction needed.", e));
   }
 
   stopBGM() {

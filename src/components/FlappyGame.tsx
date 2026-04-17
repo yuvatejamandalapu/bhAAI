@@ -74,12 +74,18 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
     pImg.onload = () => {
       birdImg.current = pImg;
     };
+    pImg.onerror = () => {
+      console.error("Player image failed to load at:", HUMAN_IMAGE_URL);
+    };
 
     const bgImg = new Image();
     bgImg.src = BACKGROUND_IMAGE_URL;
     bgImg.crossOrigin = "anonymous";
     bgImg.onload = () => {
       backgroundImg.current = bgImg;
+    };
+    bgImg.onerror = () => {
+      console.error("Background image failed to load at:", BACKGROUND_IMAGE_URL);
     };
   }, []);
 
@@ -478,6 +484,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
                   loop 
                   playsInline 
                   className="w-full h-auto object-cover"
+                  onError={(e) => console.error("Winner video failed to load:", e)}
                 />
               </div>
             )}
