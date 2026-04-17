@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import bgmUrl from '../assets/bgm.mp3';
-
 class GameAudio {
   private context: AudioContext | null = null;
   private bgm: HTMLAudioElement | null = null;
@@ -17,10 +15,12 @@ class GameAudio {
 
   playBGM() {
     if (!this.bgm) {
-      this.bgm = new Audio(bgmUrl);
+      const base = (import.meta as any).env.BASE_URL || '/';
+      const cleanBase = base.endsWith('/') ? base : base + '/';
+      this.bgm = new Audio(cleanBase + 'bgm.mp3');
       this.bgm.loop = true;
       this.bgm.volume = 0.4;
-      this.bgm.onerror = (e) => console.error("BGM failed to load:", e);
+      this.bgm.onerror = (e) => console.error("BGM failed to load from:", (this.bgm as any).src, e);
     }
     this.bgm.play().catch(e => console.log("BGM play prevented by browser policy. Interaction needed.", e));
   }

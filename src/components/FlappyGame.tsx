@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { gameAudio } from '../lib/audio';
 import { motion } from 'motion/react';
-import playerImgUrl from '../assets/player.jpeg';
-import winnerVideoUrl from '../assets/winner.mp4';
+
+// Robust asset URL helper for different deployment environments
+const getAssetUrl = (path: string) => {
+  const base = (import.meta as any).env.BASE_URL || '/';
+  const cleanBase = base.endsWith('/') ? base : base + '/';
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return cleanBase + cleanPath;
+};
 
 interface Pipe {
   x: number;
@@ -17,8 +23,9 @@ interface GameProps {
   onGameStart: () => void;
 }
 
-const HUMAN_IMAGE_URL = playerImgUrl;
+const HUMAN_IMAGE_URL = getAssetUrl('player.jpeg');
 const BACKGROUND_IMAGE_URL = 'https://picsum.photos/seed/modern-amaravati-grand-capital/1200/800?blur=1';
+const WINNER_VIDEO_URL = getAssetUrl('winner.mp4');
 
 export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,6 +38,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
 
   const [dimensions, setDimensions] = useState({ width: 360, height: 640 });
   const [isShaking, setIsShaking] = useState(false);
+  const [assetErrors, setAssetErrors] = useState<string[]>([]);
 
   // Trigger shake on score 11
   useEffect(() => {
@@ -78,6 +86,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
     };
     pImg.onerror = () => {
       console.error("Player image failed to load at:", HUMAN_IMAGE_URL);
+      setAssetErrors(prev => [...prev, "Player image (player.jpeg)"]);
     };
 
     const bgImg = new Image();
@@ -88,6 +97,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
     };
     bgImg.onerror = () => {
       console.error("Background image failed to load at:", BACKGROUND_IMAGE_URL);
+      setAssetErrors(prev => [...prev, "Background AI Image"]);
     };
   }, []);
 
@@ -459,6 +469,13 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       {/* Game Over Screen */}
       {gameState === 'GAME_OVER' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none bg-black/20 backdrop-blur-sm">
+           {assetErrors.length > 0 && (
+             <div className="absolute top-4 left-4 right-4 bg-red-500/90 text-white text-[10px] p-2 rounded-lg z-50 text-left font-mono shadow-xl border border-white/20">
+               <p className="font-black mb-1">ASSET LOAD WARNING:</p>
+               {assetErrors.map((err, i) => <p key={i}>â€¢ {err} failed to load</p>)}
+               <p className="mt-1 opacity-70">Check if files exist in /public folder and are not 0 bytes.</p>
+             </div>
+           )}
            <div className={`bg-panel-bg backdrop-blur-md rounded-[32px] p-8 w-full max-w-[280px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300 pointer-events-auto border ${score >= 11 ? 'border-yellow-400 border-4 shadow-[0_0_30px_rgba(250,204,21,0.4)]' : 'border-white/20'}`}>
             <h1 className={`text-2xl font-black mb-1 uppercase tracking-tighter leading-tight text-balance ${score >= 11 ? 'text-yellow-600' : 'text-[#e74c3c]'}`}>
               {score >= 11 ? (
@@ -481,12 +498,15 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
             {score >= 11 && (
               <div className="my-4 rounded-2xl overflow-hidden shadow-2xl border-2 border-yellow-400 bg-black animate-in fade-in zoom-in duration-500 delay-300 fill-mode-both">
                 <video 
-                  src={winnerVideoUrl} 
+                  src={WINNER_VIDEO_URL} 
                   autoPlay 
                   loop 
                   playsInline 
                   className="w-full h-auto object-cover"
-                  onError={(e) => console.error("Winner video failed to load:", e)}
+                  onError={(e) => {
+                    console.error("Winner video failed to load:", e);
+                    setAssetErrors(prev => [...prev.filter(err => err !== "Winner Video (winner.mp4)"), "Winner Video (winner.mp4)"]);
+                  }}
                 />
               </div>
             )}
