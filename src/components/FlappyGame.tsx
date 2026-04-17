@@ -23,9 +23,9 @@ interface GameProps {
   onGameStart: () => void;
 }
 
-const HUMAN_IMAGE_URL = '/player.jpeg';
-const WINNER_VIDEO_URL = '/winner.mp4';
-const BGM_URL = '/bgm.mp3';
+const HUMAN_IMAGE_URL = getAssetUrl('player.jpeg');
+const WINNER_VIDEO_URL = getAssetUrl('winner.mp4');
+const BGM_URL = getAssetUrl('bgm.mp3');
 
 export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +40,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
   const dimensionsRef = useRef(dimensions);
   const [isShaking, setIsShaking] = useState(false);
   const [assetErrors, setAssetErrors] = useState<string[]>([]);
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
 
   // Trigger shake on score 11
   useEffect(() => {
@@ -80,16 +81,28 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
   }, []);
 
   useEffect(() => {
+    let loadedCount = 0;
+    const totalAssets = 1; // Just the player image for now
+
+    const onAssetLoad = () => {
+      loadedCount++;
+      if (loadedCount >= totalAssets) {
+        setAssetsLoaded(true);
+      }
+    };
+
     const pImg = new Image();
     pImg.src = HUMAN_IMAGE_URL;
     pImg.onload = () => {
       birdImg.current = pImg;
+      onAssetLoad();
     };
     pImg.onerror = () => {
-      console.warn("Retrying player image with fallback...");
-      // Try a public URL if the local file is corrupted or mislabeled
-      const fallback = 'https://picsum.photos/seed/actor/200/200';
-      pImg.src = fallback;
+      console.error("Player image (player.jpeg) failed to load at:", HUMAN_IMAGE_URL);
+      setAssetErrors(prev => [...prev, "Player Image (player.jpeg)"]);
+      // Still set loaded to true so game can start with fallback if necessary, 
+      // but the error will be visible
+      onAssetLoad();
     };
   }, []);
 
@@ -164,41 +177,46 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      // Background - Simple sky and ground
-      ctx.fillStyle = '#72c5e1'; // Sky
-      ctx.fillRect(0, 0, width, height * 0.7);
+      // Background - Dark Premium Gradient
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+      bgGradient.addColorStop(0, '#0a0a0a');
+      bgGradient.addColorStop(0.7, '#141414');
+      bgGradient.addColorStop(0.7, '#000000');
+      bgGradient.addColorStop(1, '#050505');
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, width, height);
       
-      ctx.fillStyle = '#76c733'; // Ground
-      ctx.fillRect(0, height * 0.7, width, height * 0.3);
+      // Horizontal scanner line for "premium tech" feel
+      const scannerY = (Date.now() / 20) % height;
+      ctx.fillStyle = 'rgba(255, 0, 136, 0.05)';
+      ctx.fillRect(0, scannerY, width, 2);
 
       // Background Branding - MAVIGUN (Elite Neon Display)
       ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.font = '900 90px Inter, sans-serif';
+      ctx.globalAlpha = 0.9;
+      ctx.font = '900 110px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.translate(width / 2, height / 2);
-      ctx.rotate(-Math.PI / 6);
+      ctx.rotate(-Math.PI / 12);
       
       // Animate scale subtly over time
-      const pulse = 1 + Math.sin(Date.now() / 1000) * 0.05;
+      const pulse = 1 + Math.sin(Date.now() / 800) * 0.03;
       ctx.scale(pulse, pulse);
 
-      const nameGradient = ctx.createLinearGradient(-150, 0, 150, 0);
+      const nameGradient = ctx.createLinearGradient(-200, 0, 200, 0);
       nameGradient.addColorStop(0, '#ff0088'); // Pink
-      nameGradient.addColorStop(0.3, '#ffcc00'); // Gold
       nameGradient.addColorStop(0.5, '#00ffcc'); // Cyan
-      nameGradient.addColorStop(0.7, '#0088ff'); // Blue
       nameGradient.addColorStop(1, '#ff00ff'); // Magenta
       
       ctx.fillStyle = nameGradient;
-      ctx.shadowColor = 'rgba(255,255,255,1)';
-      ctx.shadowBlur = 30;
+      ctx.shadowColor = 'rgba(255, 0, 136, 0.8)';
+      ctx.shadowBlur = 40;
       ctx.fillText("MAVIGUN", 0, 0);
       
-      // Add a secondary glow
-      ctx.globalAlpha = 0.3;
-      ctx.shadowBlur = 50;
+      // Tertiary glow for depth
+      ctx.globalAlpha = 0.2;
+      ctx.shadowBlur = 80;
       ctx.fillText("MAVIGUN", 0, 0);
       ctx.restore();
 
@@ -388,6 +406,22 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
         ref={canvasRef}
         className="w-full h-full block touch-none"
       />
+
+      {/* Loading Overlay */}
+      {!assetsLoaded && (
+        <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.2, 1],
+              rotate: [0, 180, 360],
+              borderColor: ['#ff0088', '#00ffcc', '#ff0088']
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-16 h-16 border-t-4 border-r-4 rounded-full mb-6"
+          />
+          <p className="text-white font-black tracking-[0.3em] animate-pulse text-xs">LOADING ASSETS...</p>
+        </div>
+      )}
       
       {/* HUD Score */}
       {gameState === 'PLAYING' && (
@@ -401,22 +435,28 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
       {/* Start Screen */}
       {gameState === 'START' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="bg-panel-bg backdrop-blur-md rounded-[32px] p-8 w-full max-w-[280px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300 pointer-events-auto border border-white/20">
-            <div className="mb-6 flex justify-center">
-               <img src={HUMAN_IMAGE_URL} className="w-20 h-20 rounded-full border-4 border-white shadow-xl" alt="Player" referrerPolicy="no-referrer" />
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel rounded-[40px] p-10 w-full max-w-[320px] shadow-[0_40px_100px_rgba(0,0,0,0.8)] border-white/5"
+          >
+            <div className="mb-8 flex justify-center relative">
+               <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full" />
+               <img src={HUMAN_IMAGE_URL} className="w-24 h-24 rounded-full border-4 border-white/20 shadow-2xl relative z-10 scale-110" alt="Player" referrerPolicy="no-referrer" />
             </div>
-            <h1 className="text-3xl font-black mb-2 text-[#222] uppercase tracking-tighter text-balance">bhAAi(not buggala hari)</h1>
-            <p className="text-[14px] text-red-600 mb-8 leading-tight font-black uppercase tracking-tight animate-pulse">
+            <h1 className="text-3xl font-black mb-1 text-white uppercase tracking-tighter leading-none italic">bhAAi(not buggala hari)</h1>
+            <p className="text-[12px] text-pink-500 mb-8 font-black uppercase tracking-[0.2em] animate-pulse">
               score 11 to surprise
             </p>
             <button 
               onClick={(e) => { e.stopPropagation(); resetGame(); }}
-              className="w-full bg-[#222] text-white py-5 rounded-[20px] font-black text-xl hover:scale-[0.98] transition-all shadow-xl active:scale-90"
+              className="premium-button w-full py-6 rounded-2xl text-xl shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 group overflow-hidden"
             >
-              press bhAAi buggal
+              <span className="relative z-10">press bhAAi buggal</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 to-cyan-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
-          </div>
-          <div className="mt-8 text-[11px] uppercase tracking-[0.3em] text-[#222] font-bold opacity-40">
+          </motion.div>
+          <div className="mt-12 text-[10px] uppercase font-mono tracking-[0.5em] text-white/30 font-bold">
             High Score: {highScore}
           </div>
         </div>
@@ -424,33 +464,36 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
 
       {/* Game Over Screen */}
       {gameState === 'GAME_OVER' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none bg-black/20 backdrop-blur-sm">
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none bg-black/60 backdrop-blur-md">
            {assetErrors.length > 0 && (
-             <div className="absolute top-4 left-4 right-4 bg-red-500/90 text-white text-[10px] p-2 rounded-lg z-50 text-left font-mono shadow-xl border border-white/20">
-               <p className="font-black mb-1">ASSET LOAD WARNING:</p>
-               {assetErrors.map((err, i) => <p key={i}>â€¢ {err} failed to load</p>)}
-               <p className="mt-1 opacity-70">Check if files exist in /public folder and are not 0 bytes.</p>
+             <div className="absolute top-4 left-4 right-4 glass-panel text-red-400 text-[10px] p-3 rounded-2xl z-50 text-left font-mono shadow-2xl">
+               <p className="font-black mb-1 text-white italic">SYSTEM_ALERT_ASSET_FAILURE:</p>
+               {assetErrors.map((err, i) => <p key={i}>ERR_LOAD: {err}</p>)}
              </div>
            )}
-           <div className={`bg-panel-bg backdrop-blur-md rounded-[32px] p-8 w-full max-w-[280px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-300 pointer-events-auto border ${score >= 11 ? 'border-yellow-400 border-4 shadow-[0_0_30px_rgba(250,204,21,0.4)]' : 'border-white/20'}`}>
-            <h1 className={`text-2xl font-black mb-1 uppercase tracking-tighter leading-tight text-balance ${score >= 11 ? 'text-yellow-600' : 'text-[#e74c3c]'}`}>
+           <motion.div 
+             initial={{ scale: 0.9, opacity: 0 }}
+             animate={{ scale: 1, opacity: 1 }}
+             className={`glass-panel rounded-[40px] p-10 w-full max-w-[320px] shadow-[0_50px_100px_-20px_rgba(0,0,0,1)] border ${score >= 11 ? 'border-yellow-400/30' : 'border-white/5'}`}
+           >
+            <h1 className={`text-2xl font-black mb-2 uppercase tracking-tighter leading-tight text-balance italic ${score >= 11 ? 'text-yellow-400' : 'text-red-500'}`}>
               {score >= 11 ? (
-                <div className="flex flex-col gap-2">
-                   <div className="bg-yellow-400 text-black text-xs py-1 px-3 rounded-full self-center animate-bounce font-bold shadow-lg">
+                <div className="flex flex-col gap-4">
+                   <div className="bg-yellow-400 text-black text-[10px] py-1 px-4 rounded-full self-center animate-bounce font-black shadow-[0_0_20px_rgba(250,204,21,0.5)]">
                     CHAMPION UNLOCKED
                   </div>
-                  <span>you are the 11th winner twin please get ajob fr 🏆</span>
-                  <span className="text-yellow-700 text-base bg-yellow-100 py-3 px-4 rounded-2xl border-2 border-yellow-300 animate-pulse font-black shadow-lg">
+                  <span className="text-white">you are the 11th winner twin please get ajob fr 🏆</span>
+                  <span className="text-yellow-400 text-base bg-white/5 py-4 px-5 rounded-3xl border border-white/10 animate-pulse font-black shadow-xl">
                     FINALLY CHEYSAV KANNI POI VERE PANI CHESUKO PILLA KOJJA
                   </span>
                 </div>
               ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="bg-red-600 text-white text-[10px] py-1 px-3 rounded-full self-center animate-pulse font-bold shadow-md">
+                <div className="flex flex-col gap-4">
+                  <div className="bg-red-600 text-white text-[10px] py-1 px-4 rounded-full self-center animate-pulse font-black shadow-[0_10px_20px_rgba(220,38,38,0.3)]">
                     SCORE LIMIT NOT REACHED
                   </div>
-                  <span>way to jagan heart failed due to chows 😟</span>
-                  <span className="text-white text-base bg-red-600 py-3 px-4 rounded-xl border-b-4 border-red-800 animate-bounce font-black shadow-[0_5px_0_0_rgba(153,27,27,1)]">
+                  <span className="text-white opacity-80">way to jagan heart failed due to chows 😟</span>
+                  <span className="text-white text-base bg-red-600 py-4 px-5 rounded-3xl border-b-8 border-red-800 animate-bounce font-black shadow-2xl">
                     erripuka 11 kuda score cheyaleva
                   </span>
                 </div>
@@ -458,40 +501,48 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
             </h1>
 
             {score >= 11 && (
-              <div className="my-4 rounded-2xl overflow-hidden shadow-2xl border-2 border-yellow-400 bg-black animate-in fade-in zoom-in duration-500 delay-300 fill-mode-both">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="my-8 rounded-[32px] overflow-hidden shadow-[0_0_50px_rgba(255,255,255,0.1)] border border-white/10 bg-black aspect-video flex items-center"
+              >
                 <video 
                   src={WINNER_VIDEO_URL} 
                   autoPlay 
                   loop 
                   playsInline 
-                  className="w-full h-auto object-cover"
+                  className="w-full h-full object-cover"
                   onError={(e) => {
                     console.error("Winner video failed to load:", e);
                     setAssetErrors(prev => [...prev.filter(err => err !== "Winner Video (winner.mp4)"), "Winner Video (winner.mp4)"]);
                   }}
                 />
-              </div>
+              </motion.div>
             )}
             
-            <p className="text-[11px] uppercase tracking-widest text-[#666] mb-4 font-black opacity-60">Mission Report</p>
+            <p className="text-[10px] uppercase font-mono tracking-[0.4em] text-white/20 mb-6 font-bold">Mission Report</p>
             
-            <div className="flex flex-col items-center mb-4">
-              <span className="text-[10px] text-[#666] uppercase font-bold">Total Score</span>
-              <div className="text-6xl font-black text-[#222] leading-none mb-2">
+            <div className="flex flex-col items-center mb-10">
+              <span className="text-[10px] text-white/40 uppercase font-mono mb-2 tracking-widest">Total Score</span>
+              <div className="text-8xl font-black text-white leading-none tracking-tighter mb-4 italic drop-shadow-[0_10px_20px_rgba(255,255,255,0.2)]">
                 {score}
               </div>
-              <div className="text-[14px] font-black text-red-500 uppercase animate-bounce">
+              <motion.div 
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-[14px] font-black text-white/40 uppercase tracking-[0.3em] font-mono"
+              >
                 GET A JOB
-              </div>
+              </motion.div>
             </div>
             
             <button 
               onClick={(e) => { e.stopPropagation(); resetGame(); }}
-              className="w-full bg-[#222] text-white py-5 rounded-[20px] font-black text-xl hover:scale-[0.98] transition-all shadow-xl active:scale-90"
+              className="premium-button w-full py-6 rounded-2xl text-xl hover:scale-[1.02] shadow-2xl"
             >
               press again
             </button>
-          </div>
+          </motion.div>
         </div>
       )}
 

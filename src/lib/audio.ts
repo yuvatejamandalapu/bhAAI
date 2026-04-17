@@ -21,12 +21,14 @@ class GameAudio {
     if (!this.bgm) {
       const base = (import.meta as any).env.BASE_URL || '/';
       const cleanBase = base.endsWith('/') ? base : base + '/';
-      this.bgm = new Audio(cleanBase + 'bgm.mp3');
+      const bgmPath = cleanBase + 'bgm.mp3';
+      console.log("Loading BGM from:", bgmPath);
+      this.bgm = new Audio(bgmPath);
       this.bgm.loop = true;
-      this.bgm.volume = 0.4;
+      this.bgm.volume = 0.5; // Slightly louder
       this.bgm.onerror = (e) => console.error("BGM failed to load from:", (this.bgm as any).src, e);
     }
-    this.bgm.play().catch(e => console.log("BGM play prevented by browser policy. Interaction needed.", e));
+    this.bgm.play().catch(e => console.warn("BGM play prevented by browser policy:", e));
   }
 
   stopBGM() {
