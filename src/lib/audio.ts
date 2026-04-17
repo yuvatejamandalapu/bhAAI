@@ -15,7 +15,7 @@ class GameAudio {
 
   playBGM() {
     if (!this.bgm) {
-      this.bgm = new Audio('/bgm.mp3');
+      this.bgm = new Audio('bgm.mp3');
       this.bgm.loop = true;
       this.bgm.volume = 0.4;
       this.bgm.onerror = (e) => console.error("BGM failed to load:", e);

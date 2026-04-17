@@ -15,7 +15,7 @@ interface GameProps {
   onGameStart: () => void;
 }
 
-const HUMAN_IMAGE_URL = '/player.jpeg';
+const HUMAN_IMAGE_URL = 'player.jpeg';
 const BACKGROUND_IMAGE_URL = 'https://picsum.photos/seed/modern-amaravati-grand-capital/1200/800?blur=1';
 
 export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameProps) {
@@ -479,7 +479,7 @@ export default function FlappyGame({ onGameOver, gameState, onGameStart }: GameP
             {score >= 11 && (
               <div className="my-4 rounded-2xl overflow-hidden shadow-2xl border-2 border-yellow-400 bg-black animate-in fade-in zoom-in duration-500 delay-300 fill-mode-both">
                 <video 
-                  src="/winner.mp4" 
+                  src="winner.mp4" 
                   autoPlay 
                   loop 
                   playsInline 
