@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import bgmUrl from '../assets/bgm.mp3';
+
 class GameAudio {
   private context: AudioContext | null = null;
   private bgm: HTMLAudioElement | null = null;
@@ -15,7 +17,7 @@ class GameAudio {
 
   playBGM() {
     if (!this.bgm) {
-      this.bgm = new Audio('bgm.mp3');
+      this.bgm = new Audio(bgmUrl);
       this.bgm.loop = true;
       this.bgm.volume = 0.4;
       this.bgm.onerror = (e) => console.error("BGM failed to load:", e);
